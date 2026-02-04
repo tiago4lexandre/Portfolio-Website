@@ -17,3 +17,28 @@ Funcionalidades principais:
 - Syntax Highlight para blocos de código
 - Layout simples e responsivo
 - Estilo dark (terminal-like)
+
+---
+
+## 🚀 Objetivo do Projeto
+
+- Consolidar meus estudos em um único local
+- Facilitar a visualização de documentações técnicas
+- Servir como portfólio público para recrutadores e profissionais da área
+- Praticar desenvolvimento frontend simples focado em usabilidade e clareza
+
+---
+
+## ⚠️ Aviso Legal
+
+Todo o conteúdo apresentado neste site é utilizado **exclusivamente para fins educacionais** e em **ambientes controlados e autorizados**.  
+Nenhuma técnica deve ser aplicada em sistemas sem permissão explícita.
+
+---
+
+## 📫 Contato
+
+- 🔗 **LinkedIn:** https://www.linkedin.com/in/tiago-alexandre2001  
+- 💻 **GitHub:** https://github.com/tiago4lex
+os/
+```
