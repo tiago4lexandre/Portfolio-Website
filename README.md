@@ -40,5 +40,3 @@ Nenhuma técnica deve ser aplicada em sistemas sem permissão explícita.
 
 - 🔗 **LinkedIn:** https://www.linkedin.com/in/tiago-alexandre2001  
 - 💻 **GitHub:** https://github.com/tiago4lex
-os/
-```
