@@ -19,6 +19,10 @@ body {
   overflow: hidden;
 }
 
+.menu-toggle {
+  display: none;
+}
+
 .sidebar {
   width: 290px;
   background: var(--panel);

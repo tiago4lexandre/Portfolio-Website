@@ -1,4 +1,6 @@
 const content = document.getElementById('content');
+const menuToggle = document.querySelector('.menu-toggle');
+const menu = document.querySelector('.menu');
 
 const data = {
 	checklists: [
@@ -30,6 +32,56 @@ const data = {
 		{ title: 'PwnLab: Init', file: 'Laboratorios/PWNLAB/README.md', slug: 'pwnlab-init' },
 	],
 };
+
+// Função para alternar menu no mobile
+function toggleMenu() {
+	if (menu) {
+		menu.classList.toggle('open');
+		
+		// Atualiza o texto do botão
+		if (menu.classList.contains('open')) {
+			menuToggle.textContent = '✕ Fechar';
+		} else {
+			menuToggle.textContent = '☰ Menu';
+		}
+	}
+}
+
+// Fecha o menu ao clicar em um item (para mobile)
+function closeMenu() {
+	if (window.innerWidth <= 768) {
+		menu.classList.remove('open');
+		menuToggle.textContent = '☰ Menu';
+	}
+}
+
+// Função para corrigir imagens após o carregamento
+function fixImages() {
+	const images = document.querySelectorAll('#content img');
+	
+	images.forEach(img => {
+		// Remove qualquer width/height inline que possa estar causando problemas
+		img.removeAttribute('width');
+		img.removeAttribute('height');
+		
+		// Força estilos para garantir responsividade
+		img.style.maxWidth = '100%';
+		img.style.height = 'auto';
+		img.style.display = 'block';
+		img.style.marginLeft = 'auto';
+		img.style.marginRight = 'auto';
+		
+		// Adiciona atributo loading lazy para performance
+		if (!img.hasAttribute('loading')) {
+			img.setAttribute('loading', 'lazy');
+		}
+		
+		// Adiciona alt se não existir
+		if (!img.hasAttribute('alt')) {
+			img.setAttribute('alt', 'Imagem de documento de segurança');
+		}
+	});
+}
 
 function loadHome() {
 	document.title = 'Tiago | Cybersecurity Portfolio';
@@ -72,14 +124,19 @@ function loadHome() {
 			Conteúdo educacional • Ambientes autorizados • © Tiago Alexandre
 		</footer>
 	`;
+	
+	// Fecha menu se estiver aberto (mobile)
+	closeMenu();
 }
 
 function navigateCategory(category) {
 	location.hash = `/${category}`;
+	closeMenu();
 }
 
 function navigateTo(category, slug) {
 	location.hash = `/${category}/${slug}`;
+	closeMenu();
 }
 
 function router() {
@@ -137,6 +194,8 @@ function loadCategory(category) {
 
 	html += '</div>';
 	content.innerHTML = html;
+	
+	closeMenu();
 }
 
 async function loadMarkdown(path) {
@@ -154,10 +213,45 @@ async function loadMarkdown(path) {
 		);
 
 		content.innerHTML = marked.parse(markdown);
+		
+		// Corrige as imagens após carregar o conteúdo
+		setTimeout(fixImages, 100);
 	} catch {
 		content.innerHTML = '<p>Erro ao carregar o documento.</p>';
 	}
+	
+	closeMenu();
 }
 
+// Event Listeners
 window.addEventListener('hashchange', router);
+
+// Fecha menu ao clicar fora (para mobile)
+document.addEventListener('click', (event) => {
+	if (window.innerWidth <= 768 && menu && menuToggle) {
+		const isClickInsideMenu = menu.contains(event.target);
+		const isClickOnToggle = menuToggle.contains(event.target);
+		
+		if (!isClickInsideMenu && !isClickOnToggle && menu.classList.contains('open')) {
+			closeMenu();
+		}
+	}
+});
+
+// Fecha menu ao redimensionar a janela se voltar para desktop
+window.addEventListener('resize', () => {
+	if (window.innerWidth > 768 && menu) {
+		menu.classList.remove('open');
+		if (menuToggle) {
+			menuToggle.textContent = '☰ Menu';
+		}
+	}
+});
+
+// Inicializa o router
 router();
+
+// Configura os botões do menu para fechar no mobile
+document.querySelectorAll('.menu button').forEach(button => {
+	button.addEventListener('click', closeMenu);
+});
