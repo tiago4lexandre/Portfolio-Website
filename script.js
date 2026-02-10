@@ -5,6 +5,7 @@ const menu = document.querySelector('.menu');
 const data = {
 	checklists: [
 		{ title: 'Pentest Checklist', file: 'Checklists/Pentest-Checklist/README.md', slug: 'pentest-checklist' },
+		{ title: 'Local File Inclusion e Remote File Inclusion', file: 'Checklists/LFI-RFI/README.md', slug: 'lfi-rfi' },
 	],
 	cves: [
 		{ title: 'React2Shell — CVE-2025-55182', file: 'Vulnerabilidades/React2Shell/README.md', slug: 'react2shell' },
@@ -254,4 +255,5 @@ router();
 // Configura os botões do menu para fechar no mobile
 document.querySelectorAll('.menu button').forEach(button => {
 	button.addEventListener('click', closeMenu);
+
 });
