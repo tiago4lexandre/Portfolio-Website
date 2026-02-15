@@ -16,6 +16,10 @@ const data = {
 		{ title: 'Linux Privilege Escalation', file: 'Linux/Linux-Privilege-Escalation/README.md', slug: 'linux-privilege-escalation' },
 		{ title: 'Stable Reverse Shell', file: 'Linux/Stable-ReverseShell/README.md', slug: 'stable-reverse-shell' },
 	],
+	windows: [
+		{ title: 'Windows Privilege Escalation', file: 'Windows/Windows-PrivilegeEscalation/README.md', slug: 'windows-privilege-escalation' },
+		{ title: 'EternalBlue — MS17-010', file: 'Windows/EternalBlue/README.md', slug: 'eternalblue' },
+	],
 	network: [
 		{ title: 'ARP Spoofing & MITM', file: 'Network/ARP-Spoofing-MITM/README.md', slug: 'arp-spoofing-mitm' },
 	],
