@@ -23,6 +23,7 @@ const data = {
 	],
 	network: [
 		{ title: 'ARP Spoofing & MITM', file: 'Network/ARP-Spoofing-MITM/README.md', slug: 'arp-spoofing-mitm' },
+		{ title: 'Aircrack-ng', file: 'Network/Aircrack-ng/README.md', slug: 'aircrack-ng' },
 	],
 	tools: [
 		{ title: 'Gobuster', file: 'Ferramentas/GoBuster/README.md', slug: 'gobuster' },
@@ -301,4 +302,5 @@ if (content) {
 }
 
 // Inicializa o router
+
 router();
